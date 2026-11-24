@@ -4,11 +4,13 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 import tensorflow as tf
+from pathlib import Path
 
 app = FastAPI()
 
 
-MODEL = tf.keras.models.load_model("saved_models/1/model.keras")
+MODEL_PATH = Path(__file__).resolve().parent.parent / "saved_models" / "1" / "model.keras"
+MODEL = tf.keras.models.load_model(MODEL_PATH)
 CLASS_NAMES = [
     "Tomato_Bacterial_spot",
     "Tomato_Early_blight",
