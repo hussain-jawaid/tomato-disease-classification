@@ -1,4 +1,6 @@
+import json
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import numpy as np
 from PIL import Image
@@ -7,22 +9,20 @@ import tensorflow as tf
 from pathlib import Path
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "saved_models" / "1" / "model.keras"
 MODEL = tf.keras.models.load_model(MODEL_PATH)
-CLASS_NAMES = [
-    "Tomato_Bacterial_spot",
-    "Tomato_Early_blight",
-    "Tomato_Late_blight",
-    "Tomato_Leaf_Mold",
-    "Tomato_Septoria_leaf_spot",
-    "Tomato_Spider_mites_Two_spotted_spider_mite",
-    "Tomato__Target_Spot",
-    "Tomato__Tomato_YellowLeaf__Curl_Virus",
-    "Tomato__Tomato_mosaic_virus",
-    "Tomato_healthy",
-]
+class_names = json.loads(
+    Path(__file__).resolve().with_name("class_names.json").read_text(encoding="utf-8")
+)
 
 
 @app.get("/ping")
@@ -31,7 +31,9 @@ async def ping():
 
 
 def read_file_as_image(data) -> np.ndarray:
-    return np.array(Image.open(BytesIO(data)))
+    image = Image.open(BytesIO(data)).convert("RGB")
+    image = image.resize((256, 256))
+    return np.array(image)
 
 
 @app.post("/predict")
@@ -41,7 +43,7 @@ async def predict(file: UploadFile = File(...)):
 
     prediction = MODEL.predict(image_batch)
 
-    predicted_class = CLASS_NAMES[np.argmax(prediction[0])]
+    predicted_class = class_names[np.argmax(prediction[0])]
     confidence = np.max(prediction[0])*100
     return {"predicted_class": predicted_class, "confidence": float(confidence)}
     pass

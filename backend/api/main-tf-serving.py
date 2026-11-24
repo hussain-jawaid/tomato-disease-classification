@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from io import BytesIO
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -17,18 +18,9 @@ TF_SERVING_URL = os.getenv(
     "http://localhost:8501/v1/models/tomato:predict",
 )
 IMAGE_SIZE = (256, 256)
-CLASS_NAMES = [
-    "Tomato_Bacterial_spot",
-    "Tomato_Early_blight",
-    "Tomato_Late_blight",
-    "Tomato_Leaf_Mold",
-    "Tomato_Septoria_leaf_spot",
-    "Tomato_Spider_mites_Two_spotted_spider_mite",
-    "Tomato__Target_Spot",
-    "Tomato__Tomato_YellowLeaf__Curl_Virus",
-    "Tomato__Tomato_mosaic_virus",
-    "Tomato_healthy",
-]
+class_names = json.loads(
+    Path(__file__).resolve().with_name("class_names.json").read_text(encoding="utf-8")
+)
 
 
 @app.get("/ping")
@@ -106,9 +98,9 @@ def predict_with_tf_serving(image: np.ndarray) -> np.ndarray:
             detail="TensorFlow Serving returned invalid prediction scores",
         ) from exc
 
-    if scores.shape == (len(CLASS_NAMES),):
+    if scores.shape == (len(class_names),):
         scores = scores[np.newaxis, :]
-    if scores.shape != (1, len(CLASS_NAMES)):
+    if scores.shape != (1, len(class_names)):
         raise HTTPException(
             status_code=502,
             detail="TensorFlow Serving returned scores with an unexpected shape",
@@ -122,7 +114,7 @@ async def predict(file: UploadFile = File(...)):
     image = read_file_as_image(await file.read())
     scores = await asyncio.to_thread(predict_with_tf_serving, image)
 
-    predicted_class = CLASS_NAMES[int(np.argmax(scores))]
+    predicted_class = class_names[int(np.argmax(scores))]
     confidence = float(np.max(scores) * 100)
     return {"predicted_class": predicted_class, "confidence": confidence}
 
